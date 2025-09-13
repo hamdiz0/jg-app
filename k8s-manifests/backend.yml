@@ -1,0 +1,87 @@
+# backend deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  labels:
+    name: backend-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: backend-pod
+  template:
+    metadata:
+      labels:
+        name: backend-pod
+    spec:
+      imagePullSecrets:
+      - name: ecr-secret
+      containers:
+        - name : backend
+          # use youre backend's docker image
+          image: 640168439056.dkr.ecr.eu-west-3.amazonaws.com/backend:1.0.9
+          ports :
+          - containerPort: 80
+          env:
+            - name: DATABASE
+              value: "mongodb://admin:dwXJmJVrSvXpVUML@mongodb/mapApp?retryWrites=true&w=majority&appName=map-app&authSource=admin"
+---
+# backend service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    name: backend-pod
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# backend ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /backend
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 80
+---
+# backend hpa
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
